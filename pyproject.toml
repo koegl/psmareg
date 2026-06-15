@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "simpleitk>=2.5.5",
     "torch>=2.6.0",
     "torchvision>=0.21.0",
 ]

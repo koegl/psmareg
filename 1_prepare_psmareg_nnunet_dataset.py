@@ -1,5 +1,6 @@
 """
 Phase 1a: Prepare nnU-Net dataset for PSMA lesion segmentation (Model B).
+this is the dataset from the registration challenge
 
 Creates a nnU-Net-compatible Dataset from the Learn2Reg PSMAReg data using
 symlinks only — no files are copied or duplicated.
