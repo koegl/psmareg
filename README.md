@@ -1,7 +1,8 @@
 # PSMAReg — Quantification-Preserving Registration for Longitudinal Whole-Body PSMA PET/CT
 
-Code for our submission to the **Learn2Reg 2026 PSMAReg** challenge: registration of
-pre-therapy (baseline, *fixed*) and follow-up (*moving*) whole-body PSMA PET/CT scans
+Team **koegl**'s submission to [Learn2Reg 2026](https://learn2reg.grand-challenge.org/),
+**[Task 1 — PSMAReg](https://www.codabench.org/competitions/15724/)**: registration of
+pre-therapy (baseline, *fixed*) and follow-up (*moving*) whole-body PSMA PET/CT scans,
 with an explicit constraint on PET-derived biomarkers.
 
 <p align="center">
