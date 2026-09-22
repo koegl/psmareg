@@ -85,8 +85,8 @@ channel-first `(3, 192, 192, 288)`, in **voxel units**, mapping the moving (foll
 scan into the fixed (baseline) frame.
 
 Training additionally consumes the CT organ labels and PET lesion labels. For cases
-without released labels, the container generates them itself (TotalSegmentator in fast
-mode for CT organs, an nnU-Net trained on this cohort for PET lesions).
+without released labels these are generated: TotalSegmentator in fast mode for CT
+organs, and an nnU-Net trained on this cohort for PET lesions.
 
 ## Results
 
@@ -105,8 +105,7 @@ available yet and will be added here once the organizers release them.
 | `train.py` | training entry point — runs the pyramid levels sequentially |
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
-| `requirements.txt` | core dependencies |
-| `requirements-io.txt` | adds TotalSegmentator and nnU-Net, for automatic label generation |
+| `requirements.txt` | Python dependencies |
 | `assets/` | figures |
 
 The **submission container image is not in the repository** — it bundles the segmentation
@@ -125,10 +124,9 @@ pip install -r requirements.txt
 ```
 
 `requirements.txt` pins `torch==2.6.0` (cu124). The pin matters: `antspyx` otherwise
-pulls a cu13 wheel, which cannot initialise CUDA on a 12.x driver.
-
-If you want instance optimization to generate its own labels, install
-`requirements-io.txt` instead — it adds TotalSegmentator and nnU-Net on top.
+pulls a cu13 wheel, which cannot initialise CUDA on a 12.x driver. TotalSegmentator and
+nnU-Net are in there too; they are only touched when instance optimization has to
+generate its own labels.
 
 Tested with torch 2.6.0+cu124, numpy 2.3.5, scipy 1.15.3, nibabel 5.4.2, antspyx 0.6.3
 and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
@@ -201,11 +199,11 @@ scan and CT organ labels for both scans. Supply them directly:
 python inference.py ... --io --moving-lesion lesion.nii.gz --moving-labels moving_labels.nii.gz --fixed-labels fixed_labels.nii.gz
 ```
 
-or let them be predicted — CT organs from TotalSegmentator, PET lesions from an
-nnU-Net model directory (needs `requirements-io.txt`):
+or let them be predicted — CT organs from TotalSegmentator, PET lesions from an nnU-Net
+model directory:
 
 ```bash
-python inference.py ... --io --lesion-model /path/to/nnUNet_results/Dataset501_PSMALesion/nnUNetTrainer__nnUNetPlans__3d_fullres
+python inference.py ... --io --lesion-model /path/to/Dataset501_PSMALesion/nnUNetTrainer_PGPSplus__nnUNetPlans__3d_fullres
 ```
 
 Each label gates exactly one group of terms, so anything missing simply switches those
@@ -214,9 +212,22 @@ labels the Dice and rigidity terms go, and with neither the refinement runs on N
 smoothness and the folding barrier alone. `--io-steps` and `--io-lr` tune the loop;
 the remaining weights live in `IOConfig` in [psmareg/instance_opt.py](psmareg/instance_opt.py).
 
-The lesion model is not published — the challenge data it was trained on is not ours
-to redistribute. The container ships with it baked in, which is the easiest way to
-reproduce the submitted configuration.
+### PET lesion model
+
+`--lesion-model` is an nnU-Net results folder — the one holding `plans.json`,
+`dataset.json` and `fold_0/` — containing the model the container runs: an nnU-Net
+trained on the challenge cohort with progressive growing of patch size
+([Fischer et al.](https://arxiv.org/abs/2407.07853)), `nnUNetTrainer_PGPSplus`.
+
+That trainer changes only the training schedule, never the architecture, so stock
+nnU-Net loads the checkpoint once the trainer name resolves — which is all
+`_patch_trainer_lookup` in [psmareg/segmentation.py](psmareg/segmentation.py) arranges.
+The training fork is not needed at inference.
+
+Use this model rather than another lesion segmenter if you are reproducing the
+submission: the MTV and TLG terms are computed on its mask, so a different mask gives a
+different refinement. One pair takes about 17 s. `--lesion-folds 0 1 2 3 4` ensembles
+five folds where a model has them, at five times the cost.
 
 The affine stage is not seeded from Python (ITK uses its own RNG), so repeated runs on
 the same pair differ slightly — on the order of 0.1 voxels on average.

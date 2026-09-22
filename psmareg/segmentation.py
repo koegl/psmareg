@@ -10,7 +10,7 @@ and between them they pull in most of a second deep-learning stack.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 import nibabel as nib
 import numpy as np
@@ -31,29 +31,27 @@ def load_mask(path: Path, device: torch.device) -> torch.Tensor:
 
 
 def _patch_trainer_lookup() -> None:
-    """Let stock nnU-Net load a checkpoint trained with a custom trainer.
+    """Resolve the trainer name our checkpoint was trained with.
 
-    The lesion model was trained with ``nnUNetTrainer_PGPSplus``, which grows the
-    patch size over the course of training. nnU-Net records the trainer name in
-    the checkpoint and refuses to load one it cannot import, but that trainer
-    overrides only the training loop — never ``build_network_architecture`` — so
-    the architecture it asks for is the stock one.
+    nnU-Net records the trainer in the checkpoint and refuses to load one it
+    cannot import. The lesion model was trained with ``nnUNetTrainer_PGPSplus``,
+    which grows the patch size over the course of training and lives only in the
+    training fork — but it overrides nothing that matters at inference, so the
+    architecture it asks for is the stock one.
 
-    Rather than requiring the training fork at inference time, an unresolvable
-    trainer name falls back to the base trainer. A trainer that *did* change the
-    architecture would then fail loudly at ``load_state_dict`` rather than
-    silently producing a wrong network.
+    Rather than requiring that fork here, an unresolvable trainer name falls
+    back to the base trainer. A trainer that *did* change the architecture would
+    then fail loudly at ``load_state_dict`` rather than silently building the
+    wrong network.
 
     nnU-Net renamed this lookup between releases, so whichever symbol the
     installed version imported into its predictor module is the one wrapped.
-    (If you do have the training fork, pointing ``nnUNet_extTrainer`` at it is
-    the supported route and makes this patch a no-op.)
     """
     from nnunetv2.inference import predict_from_raw_data
     from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 
-    for name in ("recursive_find_trainer_class_by_name", "recursive_find_python_class"):
-        original = getattr(predict_from_raw_data, name, None)
+    for symbol in ("recursive_find_trainer_class_by_name", "recursive_find_python_class"):
+        original = getattr(predict_from_raw_data, symbol, None)
         if original is None:
             continue
 
@@ -64,7 +62,7 @@ def _patch_trainer_lookup() -> None:
                 found = None
             return found if found is not None else nnUNetTrainer
 
-        setattr(predict_from_raw_data, name, fallback)
+        setattr(predict_from_raw_data, symbol, fallback)
         return
 
     raise RuntimeError(
@@ -78,18 +76,23 @@ def segment_lesion(
     pet_path: Path,
     model_dir: Path,
     device: torch.device,
-    fold: int = 0,
+    folds: Sequence[int] = (0,),
     checkpoint: str = "checkpoint_final.pth",
     use_mirroring: bool = False,
 ) -> np.ndarray:
     """PET lesion mask for one timepoint, from an nnU-Net model directory.
 
     ``model_dir`` is an nnU-Net results folder — the one holding ``plans.json``,
-    ``dataset.json`` and ``fold_N/``. The model takes CT and PET as its two
-    channels.
+    ``dataset.json`` and ``fold_N/``. The model takes CT in HU and PET in SUV as
+    its two channels, unnormalised: nnU-Net applies its own preprocessing and
+    resampling from the plans, and returns the mask on the input grid.
 
-    Mirror test-time augmentation is off by default: it costs eight times the
-    tile forward passes for a small gain.
+    One fold by default rather than the full five-fold ensemble, which costs
+    five times the runtime. Pass ``folds=(0, 1, 2, 3, 4)`` to reproduce the
+    published configuration.
+
+    Mirror test-time augmentation is off by default: eight times the tile
+    forward passes for a small gain.
     """
     _patch_trainer_lookup()
     from nnunetv2.inference.predict_from_raw_data import nnUNetPredictor
@@ -104,7 +107,7 @@ def segment_lesion(
         allow_tqdm=False,
     )
     predictor.initialize_from_trained_model_folder(
-        str(model_dir), use_folds=(fold,), checkpoint_name=checkpoint
+        str(model_dir), use_folds=tuple(folds), checkpoint_name=checkpoint
     )
 
     ct_image = nib.load(str(ct_path))
@@ -153,6 +156,7 @@ def prepare_io_labels(
     moving_labels_path: Optional[Path] = None,
     fixed_labels_path: Optional[Path] = None,
     lesion_model: Optional[Path] = None,
+    lesion_folds: Sequence[int] = (0,),
     segment_ct: bool = True,
 ) -> tuple:
     """Collect the three label maps IO wants, predicting whatever is missing.
@@ -171,7 +175,9 @@ def prepare_io_labels(
     elif lesion_model is not None:
         try:
             print("segmenting PET lesions (nnU-Net)...", flush=True)
-            mask = segment_lesion(moving_ct, moving_pet, lesion_model, device)
+            mask = segment_lesion(
+                moving_ct, moving_pet, lesion_model, device, folds=lesion_folds
+            )
             lesion = _as_tensor(mask, device)
             print(f"  {int(mask.sum())} lesion voxels", flush=True)
         except Exception as error:

@@ -99,6 +99,13 @@ def parse_args() -> argparse.Namespace:
         help="nnU-Net model directory, used when --moving-lesion is not given",
     )
     io_group.add_argument(
+        "--lesion-folds",
+        type=int,
+        nargs="+",
+        default=[0],
+        help="folds of the lesion model to ensemble",
+    )
+    io_group.add_argument(
         "--no-segment-ct",
         action="store_true",
         help="skip TotalSegmentator; the Dice and rigidity terms are then off",
@@ -144,6 +151,7 @@ def main() -> None:
                 moving_labels_path=args.moving_labels,
                 fixed_labels_path=args.fixed_labels,
                 lesion_model=args.lesion_model,
+                lesion_folds=tuple(args.lesion_folds),
                 segment_ct=not args.no_segment_ct,
             )
 

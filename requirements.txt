@@ -1,5 +1,3 @@
-# Core dependencies: registration and instance optimization from supplied masks.
-#
 # torch is pinned to the version the model was trained and evaluated with.
 # The pin matters at install time as much as at run time: antspyx otherwise
 # pulls the newest torch from PyPI, which is a cu13 build and cannot initialise
@@ -9,3 +7,15 @@ numpy>=1.24
 scipy>=1.10
 nibabel>=5.2
 antspyx>=0.6
+
+# Label generation for instance optimization. Only needed when running
+# inference.py --io without supplying masks; harmless otherwise.
+#
+# CT organ labels. Downloads its own weights on first use, so the first run
+# needs network access.
+TotalSegmentator>=2.7
+# PET lesion segmentation. Stock nnU-Net, deliberately: the checkpoint is loaded
+# through it rather than through the fork it was trained with (see
+# psmareg/segmentation.py), because that fork ships under the package name
+# nnunetv2 and would displace the one TotalSegmentator depends on.
+nnunetv2>=2.5
