@@ -48,6 +48,14 @@ def parse_args() -> argparse.Namespace:
         help="affine pre-registrations; defaults to <out-dir>/affine_cache. "
         "Share one across levels — the affine does not depend on the level.",
     )
+    parser.add_argument(
+        "--split",
+        type=Path,
+        default=Path(__file__).parent / "split.json",
+        help="patient-level train/val split. The bundled file is the one the "
+        "paper used; delete it or pass another path to draw a fresh split into "
+        "<out-dir>/split.json instead.",
+    )
     parser.add_argument("--no-augment", action="store_true")
     parser.add_argument("--num-workers", type=int, default=TrainConfig.num_workers)
     parser.add_argument(
@@ -80,6 +88,7 @@ def main() -> None:
         init=args.init,
         steps=args.steps,
         cache_dir=args.cache_dir,
+        split_path=args.split if args.split and args.split.exists() else None,
     )
     print(f"best checkpoint: {best}")
 

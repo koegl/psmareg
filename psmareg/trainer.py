@@ -273,13 +273,18 @@ def train_level(
     init: Optional[Path] = None,
     steps: Optional[int] = None,
     cache_dir: Optional[Path] = None,
+    split_path: Optional[Path] = None,
 ) -> Path:
     """Train one pyramid level and return the path of its best checkpoint."""
     out_dir.mkdir(parents=True, exist_ok=True)
     cache_dir = cache_dir or out_dir / "affine_cache"
     total_steps = steps or cfg.steps[level]
 
-    train_cases, val_cases = patient_split(data_dir, out_dir / "split.json")
+    # An existing file is read as-is; otherwise a split is drawn and written
+    # here, so every level of the pyramid trains on the same cases.
+    train_cases, val_cases = patient_split(
+        data_dir, split_path or out_dir / "split.json"
+    )
     train_set = RegistrationPairs(
         data_dir,
         train_cases,

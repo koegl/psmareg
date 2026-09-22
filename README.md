@@ -105,6 +105,7 @@ available yet and will be added here once the organizers release them.
 | `train.py` | training entry point — one pyramid level per invocation |
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
+| `split.json` | the paper's patient-level train/validation split |
 | `requirements.txt` | Python dependencies |
 | `assets/` | figures |
 
@@ -172,9 +173,15 @@ python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --lev
 
 The data directory is the challenge layout — `imagesTr/` and `labelsTr/`, with pairs
 discovered from the filenames and every follow-up registered onto its patient's
-baseline. The train/validation split is drawn once, **by patient** rather than by pair
-(two timepoints of one patient share anatomy), and written to `<out-dir>/split.json` so
-all three levels see the same cases. Drop in your own file to reuse an existing split.
+baseline.
+
+[`split.json`](split.json) is the split the paper used: 117 training and 29 validation
+patients, drawn from the 146 paired cases of the released training set. It is read by
+default, so training reproduces the paper's setup. The split is **by patient** rather
+than by pair — two timepoints of one patient share anatomy, so splitting on pairs would
+leak validation anatomy into training. Pass `--split` for another file, or delete it to
+draw a fresh split into `<out-dir>/split.json`. Those 146 patients give 163 training and
+39 validation pairs.
 
 The affine pre-registration is cached under `<out-dir>/affine_cache` on first use —
 it is deterministic given a pair and costs ~15 s of CPU, which would otherwise dominate
