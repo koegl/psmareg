@@ -68,6 +68,8 @@ ribs span too few voxels for volume ratios and per-structure rigid fits to be me
 
 ## Inputs and outputs
 
+The dataset is not redistributed here. Access through the [challenge page](https://www.codabench.org/competitions/15724/); the paths below are the layout it ships in.
+
 **Input** — four NIfTI volumes per pair, as released by the challenge:
 
 | | file | role |
@@ -107,6 +109,7 @@ available yet and will be added here once the organizers release them.
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
 | `split.json` | the paper's patient-level train/validation split |
+| `LICENSE` | MIT, carrying LapIRN's notice |
 | `requirements.txt` | Python dependencies |
 | `assets/` | figures |
 
@@ -272,6 +275,12 @@ Docker Engine and the NVIDIA Container Toolkit (for `--gpus`) must be installed:
 
 Check both with `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi`,
 which should print your GPU.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE). The pyramid in [psmareg/model.py](psmareg/model.py) derives
+from [LapIRN](https://github.com/cwmok/LapIRN) (MIT, Tony C. W. Mok), whose copyright
+notice is retained there.
 
 ## Citation
 

@@ -1,2 +1,15 @@
 .vscode/
-*.pyc
+__pycache__/
+*.py[cod]
+
+# virtualenvs
+.venv/
+venv/
+
+# training output: checkpoints, affine caches, drawn splits
+runs/
+*.pth
+*.npy
+
+# predictions
+*.nii.gz
