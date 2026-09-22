@@ -209,3 +209,29 @@ def save_displacement(flow: torch.Tensor, path: Path) -> None:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     nib.save(nib.Nifti1Image(array, np.eye(4)), str(path))
+
+
+def load_displacement(
+    path: Path, img_shape: Tuple[int, int, int], device: torch.device
+) -> torch.Tensor:
+    """Read a saved displacement field back as a channel-last unit flow.
+
+    The inverse of :func:`save_displacement`. A field stored at lower resolution
+    than ``img_shape`` is upsampled first, which is what the challenge's scorer
+    does with a sub-resolution submission — so a half-resolution field is scored
+    on the same grid as a full one.
+    """
+    array = nib.load(str(path)).get_fdata().astype(np.float32)
+    # undo the channel reversal save_displacement applies
+    voxel = torch.from_numpy(array[::-1].copy())[None].to(device)
+
+    if tuple(voxel.shape[2:]) != tuple(img_shape):
+        voxel = torch.nn.functional.interpolate(
+            voxel, size=img_shape, mode="trilinear", align_corners=False
+        )
+
+    h, w, d = img_shape
+    scale = torch.tensor(
+        [(d - 1) / 2.0, (w - 1) / 2.0, (h - 1) / 2.0], device=device
+    )
+    return voxel.permute(0, 2, 3, 4, 1) / scale

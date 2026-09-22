@@ -107,6 +107,7 @@ available yet and will be added here once the organizers release them.
 |---|---|
 | `train.py` | training entry point — one pyramid level per invocation |
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
+| `evaluate.py` | score displacement fields: DSC, HD95, MTV, TLG, NDV |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
 | `split.json` | the paper's patient-level train/validation split |
 | `LICENSE` | MIT, carrying LapIRN's notice |
@@ -297,6 +298,23 @@ five folds where a model has them, at five times the cost.
 
 The affine stage is not seeded from Python (ITK uses its own RNG), so repeated runs on
 the same pair differ slightly — on the order of 0.1 voxels on average.
+
+## Evaluation
+
+Score a directory of displacement fields:
+
+```bash
+python evaluate.py --fields runs/predictions --data-dir /path/to/PSMAReg_dataset --csv metrics.csv
+```
+
+It reads every `disp_<case>_<fixed>_<case>_<moving>.nii.gz` — the naming the container writes — and reports DSC, HD95, MTV and TLG error and NDV per pair, then their means.
+CT organ labels and PET lesion masks are taken from the dataset's label directory.
+
+To score MTV and TLG against different lesion masks — predicted ones, say — point `--lesion-masks` at a directory holding them, named as the labels are (`PSMARegPSMA_<case>_0001_<timepoint>.nii.gz`):
+
+```bash
+python evaluate.py --fields runs/predictions --data-dir /path/to/PSMAReg_dataset --lesion-masks runs/segmentations
+```
 
 ## Docker prerequisites
 
