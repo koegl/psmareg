@@ -108,9 +108,9 @@ available yet and will be added here once the organizers release them.
 | `requirements.txt` | Python dependencies |
 | `assets/` | figures |
 
-The **submission container image is not in the repository** — it is published as a
-[GitHub release](../../releases) (`psmareg_koegl.tar.gz`, `docker load`-able), since the
-image is several GB and bundles the segmentation weights.
+The **submission container image is not in the repository** — it bundles the segmentation
+weights and is several GB, so it is published to the GitHub Container Registry as
+[`ghcr.io/koegl/psmareg`](https://github.com/koegl/psmareg/pkgs/container/psmareg).
 
 ## Installation
 
@@ -128,17 +128,17 @@ otherwise pull a cu13 wheel, which cannot initialise CUDA on a 12.x driver.
 
 ## Running the container
 
-Download `psmareg_koegl.tar.gz` from the releases page and load it:
+Pull the image (no login needed, the package is public):
 
 ```bash
-docker load --input psmareg_koegl.tar.gz
+docker pull ghcr.io/koegl/psmareg:v1.0.0
 ```
 
 Then register one pair — five positional paths, in this order (fixed CT, fixed PET,
 moving CT, moving PET, output field):
 
 ```bash
-docker run --rm --ipc=host --memory 60g --gpus "device=0" --user $(id -u):$(id -g) --network=none --mount type=bind,source=<image dir>,target=/app/input,readonly --mount type=bind,source=<output dir>,target=/app/output psmareg_koegl /app/input/PSMARegPSMA_0001_0000_00.nii.gz /app/input/PSMARegPSMA_0001_0001_00.nii.gz /app/input/PSMARegPSMA_0001_0000_01.nii.gz /app/input/PSMARegPSMA_0001_0001_01.nii.gz /app/output/disp_0001_00_0001_01.nii.gz
+docker run --rm --ipc=host --memory 60g --gpus "device=0" --user $(id -u):$(id -g) --network=none --mount type=bind,source=<image dir>,target=/app/input,readonly --mount type=bind,source=<output dir>,target=/app/output ghcr.io/koegl/psmareg:v1.0.0 /app/input/PSMARegPSMA_0001_0000_00.nii.gz /app/input/PSMARegPSMA_0001_0001_00.nii.gz /app/input/PSMARegPSMA_0001_0000_01.nii.gz /app/input/PSMARegPSMA_0001_0001_01.nii.gz /app/output/disp_0001_00_0001_01.nii.gz
 ```
 
 No other arguments are needed; every default is baked into the image. Resource envelope:
