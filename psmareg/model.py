@@ -278,3 +278,48 @@ def build_model(
     if weights is not None:
         model.load_state_dict(torch.load(weights, map_location=device))
     return model
+
+
+def build_level(
+    cfg: ModelConfig,
+    device: torch.device,
+    level: int,
+    init: Optional[Path] = None,
+) -> _PyramidLevel:
+    """Build pyramid level ``level`` with the coarser levels nested inside it.
+
+    ``init`` is the checkpoint of the *previous* level, whose weights are loaded
+    into the nested copy — this is how a finer level starts from the coarser
+    one rather than from scratch. For level 1 there is nothing to initialise
+    from, so ``init`` must be ``None``.
+    """
+    if level == 1:
+        if init is not None:
+            raise ValueError("level 1 has no previous level to initialise from")
+        return Level1(cfg, device).to(device)
+
+    previous = build_level(cfg, device, level - 1)
+    if init is not None:
+        previous.load_state_dict(torch.load(init, map_location=device))
+
+    builder = {2: Level2, 3: Level3}[level]
+    return builder(cfg, device, previous).to(device)
+
+
+def nested_level(model: _PyramidLevel) -> Optional[_PyramidLevel]:
+    """The coarser level inside ``model``, or ``None`` at level 1."""
+    return getattr(model, "model_lvl2", None) or getattr(model, "model_lvl1", None)
+
+
+def set_nested_trainable(model: _PyramidLevel, trainable: bool) -> None:
+    """Freeze or unfreeze every level below this one.
+
+    A fresh level starts as noise, and its early gradients would otherwise reach
+    a coarser level that is already good. Freezing until the new head has warmed
+    up, then fine-tuning jointly, is what the schedule does.
+    """
+    nested = nested_level(model)
+    if nested is None:
+        return
+    for parameter in nested.parameters():
+        parameter.requires_grad = trainable

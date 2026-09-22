@@ -67,6 +67,35 @@ class NCC(torch.nn.Module):
         return -torch.mean(cc.clamp(max=1.0))
 
 
+class MultiResolutionNCC(torch.nn.Module):
+    """NCC summed over several resolutions, each at half the weight.
+
+    A single window sees one spatial scale. Summing over a pooled pyramid lets
+    the same term respond to coarse misalignment and to fine detail, which
+    matters here because the level is asked to fix both. The window shrinks by
+    two per scale, so the *physical* extent stays roughly constant as the image
+    is pooled.
+
+    ``scales=1`` is a plain :class:`NCC`; the pyramid levels use one, two and
+    three scales from coarse to fine.
+    """
+
+    def __init__(self, win: int = 7, scales: int = 3):
+        super().__init__()
+        self.scales = torch.nn.ModuleList(
+            [NCC(win=win - 2 * i) for i in range(scales)]
+        )
+
+    def forward(self, moving: torch.Tensor, fixed: torch.Tensor) -> torch.Tensor:
+        total = moving.new_zeros(())
+        for index, ncc in enumerate(self.scales):
+            total = total + ncc(moving, fixed) / (2**index)
+            if index + 1 < len(self.scales):
+                moving = F.avg_pool3d(moving, 3, stride=2, padding=1, count_include_pad=False)
+                fixed = F.avg_pool3d(fixed, 3, stride=2, padding=1, count_include_pad=False)
+        return total
+
+
 def dice_loss(
     moving_label: torch.Tensor,
     fixed_label: torch.Tensor,

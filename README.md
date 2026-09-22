@@ -102,7 +102,7 @@ available yet and will be added here once the organizers release them.
 
 | path | what it is |
 |---|---|
-| `train.py` | training entry point — runs the pyramid levels sequentially |
+| `train.py` | training entry point — one pyramid level per invocation |
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
 | `requirements.txt` | Python dependencies |
@@ -156,28 +156,51 @@ TotalSegmentator weights are all baked in, and it runs with `--network=none`.
 
 ## Training
 
-Data is expected in the layout released by the challenge. Levels are trained in order,
-each initialised from the previous one:
+Levels are trained in order, each initialised from the previous one:
 
 ```bash
 python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 1
 ```
 
 ```bash
-python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 2 --init runs/psmareg/lvl1_best.pth
+python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 2 --init runs/psmareg/level1_best.pth
 ```
 
 ```bash
-python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 3 --init runs/psmareg/lvl2_best.pth
+python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 3 --init runs/psmareg/level2_best.pth
 ```
 
-Loss weights, augmentation and the IO settings live in `psmareg/config.py`; all of them
-can be overridden on the command line. Reference run: 60k / 60k / 120k steps with Adam at
-3·10⁻⁴, 2·10⁻⁴ and 2.5·10⁻⁴, batch size 1 with gradient accumulation over 4 steps, five
-epochs of linear warmup per level, the preceding level frozen for the first ten epochs.
-The convolutional trunk runs in bfloat16 while transforms and losses stay in fp32, to keep
+The data directory is the challenge layout — `imagesTr/` and `labelsTr/`, with pairs
+discovered from the filenames and every follow-up registered onto its patient's
+baseline. The train/validation split is drawn once, **by patient** rather than by pair
+(two timepoints of one patient share anatomy), and written to `<out-dir>/split.json` so
+all three levels see the same cases. Drop in your own file to reuse an existing split.
+
+The affine pre-registration is cached under `<out-dir>/affine_cache` on first use —
+it is deterministic given a pair and costs ~15 s of CPU, which would otherwise dominate
+every step. Point all three levels at one cache with `--cache-dir`.
+
+Reference run: 60k / 60k / 120k steps with Adam at 3·10⁻⁴, 2·10⁻⁴ and 2.5·10⁻⁴, batch
+size 1 with gradient accumulation over 4 steps, five epochs of linear warmup per level,
+and the preceding level frozen for the first ten epochs then fine-tuned jointly. The
+convolutional trunk runs in bfloat16 while transforms and losses stay in fp32, keeping
 scaling-and-squaring and the Jacobian terms numerically sound. All three levels take
-≈ 2 d 6 h on a single NVIDIA H100 80 GB.
+≈ 2 d 6 h on a single NVIDIA H100 80 GB. `--steps` and `--lr` override the schedule.
+
+Loss weights and augmentation live in `TrainConfig` in
+[psmareg/config.py](psmareg/config.py); `level_weights` is where the coarse levels drop
+the PET and rigidity terms.
+
+**Checkpoint selection.** Validation runs on the composed transform at full resolution
+whatever level is training, and checkpoints are kept on the challenge's composite score,
+not on Dice — registration accuracy keeps improving after the MTV and TLG errors have
+bottomed out, so the best-aligned checkpoint is not the best submission. The score is a
+surrogate: it mirrors the official 0.4/0.4/0.2 weighted geometric mean, with the
+server's significance tests replaced by per-metric qualities a single run can compute
+(see [psmareg/metrics.py](psmareg/metrics.py)). HD95 there is a distance-transform
+implementation rather than the challenge's surfel-based one, so absolute values differ
+slightly from the leaderboard; only the ordering between checkpoints matters for
+selection.
 
 ## Inference
 

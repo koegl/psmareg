@@ -9,8 +9,9 @@ Only CT drives this stage. PET uptake changes with therapy, so matching it would
 align disease rather than anatomy.
 """
 
+import os
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import ants
 import nibabel as nib
@@ -141,4 +142,96 @@ def affine_flow(
     """:func:`affine_displacement` as a unit flow, ``(1, H, W, D, 3)``."""
     displacement = affine_displacement(fixed_ct, moving_ct, cfg)
     tensor = torch.from_numpy(displacement).permute(3, 0, 1, 2)[None].to(device).float()
+    return voxel_disp_to_unit_flow(tensor, cfg.img_shape)
+
+
+# ---------------------------------------------------------------------------
+# Training-time reuse
+#
+# The affine is deterministic given a pair, and ANTs takes ~15 s of CPU per
+# call, which would dominate a training step. It is therefore computed once per
+# pair and cached on disk; augmentation is applied to the cached field
+# afterwards, so the field stays consistent with the images it will be composed
+# with.
+# ---------------------------------------------------------------------------
+
+
+def cached_affine_displacement(
+    fixed_ct: Path, moving_ct: Path, cfg: ModelConfig, cache_dir: Optional[Path]
+) -> np.ndarray:
+    """:func:`affine_displacement`, memoised on disk under ``cache_dir``."""
+    if cache_dir is None:
+        return affine_displacement(fixed_ct, moving_ct, cfg)
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / f"{moving_ct.stem}__{fixed_ct.stem}.npy"
+    if path.exists():
+        return np.load(path).astype(np.float32)
+
+    displacement = affine_displacement(fixed_ct, moving_ct, cfg)
+    # Write via a temporary file: several dataloader workers may race on the
+    # same pair, and a half-written .npy would poison the cache permanently.
+    temporary = path.with_suffix(f".{os.getpid()}.tmp.npy")
+    np.save(temporary, displacement)
+    temporary.replace(path)
+    return displacement
+
+
+def flip_displacement(displacement: np.ndarray) -> np.ndarray:
+    """Mirror a displacement field along the left-right axis.
+
+    Two things change: the field is reversed along that axis, and its component
+    along it flips sign. Reversing alone would describe the same motion in a
+    mirrored body, which is not what a mirrored image needs.
+    """
+    flipped = displacement[::-1].copy()
+    flipped[..., 0] = -flipped[..., 0]
+    return flipped
+
+
+def crop_displacement(
+    displacement: np.ndarray, crop_head: int, crop_feet: int
+) -> np.ndarray:
+    """Apply the same axial crop-and-zero-pad the images get.
+
+    Removed slices become zero displacement rather than being dropped, so the
+    field keeps the original shape and the padded region is the identity.
+    """
+    if crop_head == 0 and crop_feet == 0:
+        return displacement
+
+    depth = displacement.shape[2]
+    cropped = displacement[:, :, crop_head : depth - crop_feet if crop_feet else depth]
+    pad = lambda n: np.zeros(displacement.shape[:2] + (n, 3), dtype=displacement.dtype)
+    return np.concatenate([pad(crop_head), cropped, pad(crop_feet)], axis=2)
+
+
+def augment_displacement(
+    displacement: np.ndarray,
+    flipped: bool,
+    crop_head: int,
+    crop_feet: int,
+    crop_head_fixed: int = 0,
+    crop_feet_fixed: int = 0,
+) -> np.ndarray:
+    """Replay the image augmentation on a cached affine field.
+
+    The field is indexed in the *fixed* frame — warping samples the moving image
+    at ``grid + flow`` — so it has to follow the fixed image's crops, in the
+    order they were applied: the shared crop first, then the fixed-only one. The
+    moving-only crop is deliberately absent: that one is already baked into the
+    moving image this field will sample from.
+    """
+    if flipped:
+        displacement = flip_displacement(displacement)
+    displacement = crop_displacement(displacement, crop_head, crop_feet)
+    return crop_displacement(displacement, crop_head_fixed, crop_feet_fixed)
+
+
+def displacement_to_flow(
+    displacement: np.ndarray, cfg: ModelConfig, device: torch.device
+) -> torch.Tensor:
+    """A ``(H, W, D, 3)`` voxel field as a unit flow ``(1, H, W, D, 3)``."""
+    tensor = torch.from_numpy(np.ascontiguousarray(displacement))
+    tensor = tensor.permute(3, 0, 1, 2)[None].to(device).float()
     return voxel_disp_to_unit_flow(tensor, cfg.img_shape)
