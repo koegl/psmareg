@@ -117,6 +117,31 @@ The **submission container image is not in the repository** — it bundles the s
 weights and is several GB, so it is published to the GitHub Container Registry as
 [`ghcr.io/koegl/psmareg`](https://github.com/users/koegl/packages/container/package/psmareg).
 
+## Weights
+
+Neither checkpoint is in the repository; both are attached to the
+[latest release](../../releases/latest), with a `SHA256SUMS` alongside them.
+
+| asset | size | what |
+|---|---|---|
+| `psmareg_registration.pth` | 3.6 MB | the LapIRN pyramid — pass to `--weights` |
+| `psmareg_lesion_nnunet.tar.gz` | 219 MB | the PET lesion nnU-Net — extract, pass the folder to `--lesion-model` |
+
+```bash
+curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_registration.pth
+```
+
+```bash
+curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_lesion_nnunet.tar.gz && tar xzf psmareg_lesion_nnunet.tar.gz
+```
+
+The lesion archive holds only `plans.json`, `dataset.json` and `fold_0/checkpoint_final.pth`
+— the training run also left ~17 intermediate patch-size checkpoints (4.2 GB) that
+inference never reads. `checkpoint_final`, not `checkpoint_best`: the validation split is
+the held-out set the segmentation models were compared on.
+
+Both are already baked into the container, which needs neither download.
+
 ## Installation
 
 Python 3.11, CUDA 12.x, one GPU with ≥ 24 GB VRAM for inference.
@@ -158,6 +183,13 @@ steps as fit inside it, so a faster machine takes more steps rather than finishi
 
 The image is self-contained: model weights, the PET lesion nnU-Net and the
 TotalSegmentator weights are all baked in, and it runs with `--network=none`.
+
+It was built from the submission code, of which this repository is a cleaned-up
+rewrite. The two were checked against each other on real pairs: the network path is
+identical at the coarsest level and differs by ~0.02 voxels at full resolution
+(bfloat16 kernel noise), and the instance-optimization objective matches term for
+term. The one source of run-to-run variation is the ANTs affine, which ITK does not
+seed from Python.
 
 ## Training
 
@@ -218,7 +250,7 @@ selection.
 Without the container, on a single pair:
 
 ```bash
-python inference.py --fixed-ct fixed_ct.nii.gz --fixed-pet fixed_pet.nii.gz --moving-ct moving_ct.nii.gz --moving-pet moving_pet.nii.gz --weights model.pth --out disp.nii.gz
+python inference.py --fixed-ct fixed_ct.nii.gz --fixed-pet fixed_pet.nii.gz --moving-ct moving_ct.nii.gz --moving-pet moving_pet.nii.gz --weights psmareg_registration.pth --out disp.nii.gz
 ```
 
 Affine pre-registration, the network, and the composition of the two: about 21 s per
@@ -237,7 +269,7 @@ or let them be predicted — CT organs from TotalSegmentator, PET lesions from a
 model directory:
 
 ```bash
-python inference.py ... --io --lesion-model /path/to/Dataset501_PSMALesion/nnUNetTrainer_PGPSplus__nnUNetPlans__3d_fullres
+python inference.py ... --io --lesion-model psmareg_lesion_nnunet
 ```
 
 Each label gates exactly one group of terms, so anything missing simply switches those
