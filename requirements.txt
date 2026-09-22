@@ -1,0 +1,11 @@
+# Core dependencies: registration and instance optimization from supplied masks.
+#
+# torch is pinned to the version the model was trained and evaluated with.
+# The pin matters at install time as much as at run time: antspyx otherwise
+# pulls the newest torch from PyPI, which is a cu13 build and cannot initialise
+# CUDA on a 12.x driver.
+torch==2.6.0
+numpy>=1.24
+scipy>=1.10
+nibabel>=5.2
+antspyx>=0.6

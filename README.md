@@ -105,7 +105,8 @@ available yet and will be added here once the organizers release them.
 | `train.py` | training entry point — runs the pyramid levels sequentially |
 | `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
-| `requirements.txt` | Python dependencies |
+| `requirements.txt` | core dependencies |
+| `requirements-io.txt` | adds TotalSegmentator and nnU-Net, for automatic label generation |
 | `assets/` | figures |
 
 The **submission container image is not in the repository** — it bundles the segmentation
@@ -123,8 +124,14 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-`requirements.txt` pins `torch==2.6.0` (cu124). The pin matters: `antspyx` and `monai`
-otherwise pull a cu13 wheel, which cannot initialise CUDA on a 12.x driver.
+`requirements.txt` pins `torch==2.6.0` (cu124). The pin matters: `antspyx` otherwise
+pulls a cu13 wheel, which cannot initialise CUDA on a 12.x driver.
+
+If you want instance optimization to generate its own labels, install
+`requirements-io.txt` instead — it adds TotalSegmentator and nnU-Net on top.
+
+Tested with torch 2.6.0+cu124, numpy 2.3.5, scipy 1.15.3, nibabel 5.4.2, antspyx 0.6.3
+and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
 
 ## Running the container
 
@@ -179,12 +186,40 @@ scaling-and-squaring and the Jacobian terms numerically sound. All three levels 
 Without the container, on a single pair:
 
 ```bash
-python inference.py --fixed-ct fixed_ct.nii.gz --fixed-pet fixed_pet.nii.gz --moving-ct moving_ct.nii.gz --moving-pet moving_pet.nii.gz --weights weights/model.pth --out disp.nii.gz --io
+python inference.py --fixed-ct fixed_ct.nii.gz --fixed-pet fixed_pet.nii.gz --moving-ct moving_ct.nii.gz --moving-pet moving_pet.nii.gz --weights model.pth --out disp.nii.gz
 ```
 
-`--io` enables instance optimization (slower, more accurate); `--no-io` runs the network
-prediction alone. With `--io` you also need lesion and organ labels — pass them with
-`--moving-lesion` / `--ct-labels`, or let the script segment them with `--segment`.
+Affine pre-registration, the network, and the composition of the two: about 21 s per
+pair on an RTX A6000, most of it the CPU-bound ANTs affine.
+
+### Instance optimization
+
+`--io` refines the field for that one pair. It needs a PET lesion mask of the moving
+scan and CT organ labels for both scans. Supply them directly:
+
+```bash
+python inference.py ... --io --moving-lesion lesion.nii.gz --moving-labels moving_labels.nii.gz --fixed-labels fixed_labels.nii.gz
+```
+
+or let them be predicted — CT organs from TotalSegmentator, PET lesions from an
+nnU-Net model directory (needs `requirements-io.txt`):
+
+```bash
+python inference.py ... --io --lesion-model /path/to/nnUNet_results/Dataset501_PSMALesion/nnUNetTrainer__nnUNetPlans__3d_fullres
+```
+
+Each label gates exactly one group of terms, so anything missing simply switches those
+off rather than failing: without the lesion mask the PET terms go, without the CT
+labels the Dice and rigidity terms go, and with neither the refinement runs on NCC,
+smoothness and the folding barrier alone. `--io-steps` and `--io-lr` tune the loop;
+the remaining weights live in `IOConfig` in [psmareg/instance_opt.py](psmareg/instance_opt.py).
+
+The lesion model is not published — the challenge data it was trained on is not ours
+to redistribute. The container ships with it baked in, which is the easiest way to
+reproduce the submitted configuration.
+
+The affine stage is not seeded from Python (ITK uses its own RNG), so repeated runs on
+the same pair differ slightly — on the order of 0.1 voxels on average.
 
 ## Docker prerequisites
 

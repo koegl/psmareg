@@ -1,0 +1,16 @@
+# Instance optimization with automatic label generation, i.e. inference.py --io
+# without --moving-lesion / --moving-labels / --fixed-labels.
+#
+# Kept separate from requirements.txt because between them these pull in a
+# second deep-learning stack, and neither is touched unless labels have to be
+# predicted.
+-r requirements.txt
+
+# CT organ labels. Downloads its own weights on first use, so the first run
+# needs network access.
+TotalSegmentator>=2.7
+
+# PET lesion segmentation. The published checkpoint was trained with a custom
+# trainer that only changes the training schedule, so stock nnU-Net loads it
+# (see psmareg/segmentation.py:_patch_trainer_lookup).
+nnunetv2>=2.5
