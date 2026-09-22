@@ -110,7 +110,7 @@ available yet and will be added here once the organizers release them.
 
 The **submission container image is not in the repository** — it bundles the segmentation
 weights and is several GB, so it is published to the GitHub Container Registry as
-[`ghcr.io/koegl/psmareg`](https://github.com/koegl/psmareg/pkgs/container/psmareg).
+[`ghcr.io/koegl/psmareg`](https://github.com/users/koegl/packages/container/package/psmareg).
 
 ## Installation
 
