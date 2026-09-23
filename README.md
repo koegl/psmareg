@@ -39,6 +39,16 @@ quantification; and per-bone rigidity, diffusion smoothness and a differentiable
 folding (NDV) penalty for regularization. The two coarser levels drop the PET and
 rigidity terms.
 
+## Results
+
+Official Learn2Reg 2026 evaluation-server numbers. The hidden **test** results are not
+available yet and will be added here once the organizers release them.
+
+| leaderboard | rank | DSC (%) ↑ | HD95 (mm) ↓ | MTV error (%) ↓ | TLG error (%) ↓ | NDV (%) ↓ |
+|---|---|---|---|---|---|---|
+| validation | 7/45 | 78.9 ± 3.8 | 5.99 ± 2.39 | 1.56 ± 1.22 | 4.18 ± 2.49 | 0.0041 ± 0.0024 |
+| **test** | — | — | — | — | — | — |
+
 ## Inputs and outputs
 
 The dataset is not redistributed here. Access through the [challenge page](https://www.codabench.org/competitions/15724/); the paths below are the layout it ships in.
@@ -58,60 +68,6 @@ preprocessing is applied.
 **Output** — one dense displacement field per pair, `disp_XXXX_00_XXXX_01.nii.gz`:
 channel-first `(3, 192, 192, 288)`, in **voxel units**, mapping the moving (follow-up)
 scan into the fixed (baseline) frame.
-
-## Results
-
-Official Learn2Reg 2026 evaluation-server numbers. The hidden **test** results are not
-available yet and will be added here once the organizers release them.
-
-| leaderboard | rank | DSC (%) ↑ | HD95 (mm) ↓ | MTV error (%) ↓ | TLG error (%) ↓ | NDV (%) ↓ |
-|---|---|---|---|---|---|---|
-| validation | 7/45 | 78.9 ± 3.8 | 5.99 ± 2.39 | 1.56 ± 1.22 | 4.18 ± 2.49 | 0.0041 ± 0.0024 |
-| **test** | — | — | — | — | — | — |
-
-## What is in this repository
-
-| path | what it is |
-|---|---|
-| `train.py` | training entry point — one pyramid level per invocation |
-| `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
-| `evaluate.py` | score displacement fields: DSC, HD95, MTV, TLG, NDV |
-| `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
-| `split.json` | the paper's patient-level train/validation split |
-
-## Weights
-
-Neither checkpoint is in the repository; both are attached to the
-[latest release](../../releases/latest), with a `SHA256SUMS` alongside them.
-
-| asset | size | what |
-|---|---|---|
-| `psmareg_registration.pth` | 3.6 MB | the LapIRN pyramid — pass to `--weights` |
-| `psmareg_lesion_nnunet.tar.gz` | 219 MB | the PET lesion nnU-Net — extract, pass the folder to `--lesion-model` |
-
-```bash
-curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_registration.pth
-```
-
-```bash
-curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_lesion_nnunet.tar.gz && tar xzf psmareg_lesion_nnunet.tar.gz
-```
-
-Both are already baked into the container, which needs neither download.
-
-## Installation
-
-Python 3.11, CUDA 12.x, one GPU with ≥ 24 GB VRAM for inference.
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-Tested with torch 2.6.0+cu124, numpy 2.3.5, scipy 1.15.3, nibabel 5.4.2, antspyx 0.6.3
-and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
 
 ## Running the container
 
@@ -134,26 +90,49 @@ No other arguments are needed. The image is self-contained (all weights baked in
 with `--network=none`) and needs 1 GPU (24 GB), ~8 GB RAM and ~90 s per pair — a fixed
 time budget within which instance optimization runs as many steps as fit.
 
-## Training
+## What is in this repository
 
-Levels are trained in order, each initialised from the previous one:
+| path | what it is |
+|---|---|
+| `train.py` | training entry point — one pyramid level per invocation |
+| `inference.py` | inference on a single pair: affine → network → optional IO → displacement field |
+| `evaluate.py` | score displacement fields: DSC, HD95, MTV, TLG, NDV |
+| `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
+| `split.json` | the paper's patient-level train/validation split |
+
+## Installation
+
+Python 3.11, CUDA 12.x, one GPU with ≥ 24 GB VRAM for inference.
 
 ```bash
-python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 1
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Tested with torch 2.6.0+cu124, numpy 2.3.5, scipy 1.15.3, nibabel 5.4.2, antspyx 0.6.3
+and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
+
+## Weights
+
+Neither checkpoint is in the repository; both are attached to the
+[latest release](../../releases/latest), with a `SHA256SUMS` alongside them.
+
+| asset | size | what |
+|---|---|---|
+| `psmareg_registration.pth` | 3.6 MB | the LapIRN pyramid — pass to `--weights` |
+| `psmareg_lesion_nnunet.tar.gz` | 219 MB | the PET lesion nnU-Net — extract, pass the folder to `--lesion-model` |
+
+```bash
+curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_registration.pth
 ```
 
 ```bash
-python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 2 --init runs/psmareg/level1_best.pth
+curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_lesion_nnunet.tar.gz && tar xzf psmareg_lesion_nnunet.tar.gz
 ```
 
-```bash
-python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 3 --init runs/psmareg/level2_best.pth
-```
-
-`--data-dir` is the challenge layout (`imagesTr/`, `labelsTr/`). The paper's
-patient-level split, [`split.json`](split.json), is read by default, and the defaults in
-[psmareg/config.py](psmareg/config.py) are the reference run (≈ 2 d 6 h in total on one
-H100 80 GB).
+Both are already baked into the container, which needs neither download.
 
 ## Inference
 
@@ -183,6 +162,27 @@ python inference.py ... --io --lesion-model psmareg_lesion_nnunet
 
 A missing label only disables the loss terms that need it. To reproduce the submission,
 use this lesion model — the MTV and TLG terms are computed on its mask.
+
+## Training
+
+Levels are trained in order, each initialised from the previous one:
+
+```bash
+python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 1
+```
+
+```bash
+python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 2 --init runs/psmareg/level1_best.pth
+```
+
+```bash
+python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 3 --init runs/psmareg/level2_best.pth
+```
+
+`--data-dir` is the challenge layout (`imagesTr/`, `labelsTr/`). The paper's
+patient-level split, [`split.json`](split.json), is read by default, and the defaults in
+[psmareg/config.py](psmareg/config.py) are the reference run (≈ 2 d 6 h in total on one
+H100 80 GB).
 
 ## Evaluation
 
