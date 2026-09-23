@@ -150,20 +150,9 @@ moving CT, moving PET, output field):
 docker run --rm --ipc=host --memory 60g --gpus "device=0" --user $(id -u):$(id -g) --network=none --mount type=bind,source=<image dir>,target=/app/input,readonly --mount type=bind,source=<output dir>,target=/app/output ghcr.io/koegl/psmareg:v1.0.0 /app/input/PSMARegPSMA_0001_0000_00.nii.gz /app/input/PSMARegPSMA_0001_0001_00.nii.gz /app/input/PSMARegPSMA_0001_0000_01.nii.gz /app/input/PSMARegPSMA_0001_0001_01.nii.gz /app/output/disp_0001_00_0001_01.nii.gz
 ```
 
-No other arguments are needed; every default is baked into the image. Resource envelope:
-1 CUDA GPU (24 GB VRAM peak), ~8 GB RAM, scales to ~29 CPU cores, **~90 s per pair** — the
-container holds an internal 90 s wall-clock budget and instance optimization takes as many
-steps as fit inside it, so a faster machine takes more steps rather than finishing sooner.
-
-The image is self-contained: model weights, the PET lesion nnU-Net and the
-TotalSegmentator weights are all baked in, and it runs with `--network=none`.
-
-It was built from the submission code, of which this repository is a cleaned-up
-rewrite. The two were checked against each other on real pairs: the network path is
-identical at the coarsest level and differs by ~0.02 voxels at full resolution
-(bfloat16 kernel noise), and the instance-optimization objective matches term for
-term. The one source of run-to-run variation is the ANTs affine, which ITK does not
-seed from Python.
+No other arguments are needed. The image is self-contained (all weights baked in, runs
+with `--network=none`) and needs 1 GPU (24 GB), ~8 GB RAM and ~90 s per pair — a fixed
+time budget within which instance optimization runs as many steps as fit.
 
 ## Training
 
