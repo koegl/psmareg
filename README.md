@@ -122,11 +122,6 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-`requirements.txt` pins `torch==2.6.0` (cu124). The pin matters: `antspyx` otherwise
-pulls a cu13 wheel, which cannot initialise CUDA on a 12.x driver. TotalSegmentator and
-nnU-Net are in there too; they are only touched when instance optimization has to
-generate its own labels.
-
 Tested with torch 2.6.0+cu124, numpy 2.3.5, scipy 1.15.3, nibabel 5.4.2, antspyx 0.6.3
 and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
 
