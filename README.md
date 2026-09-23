@@ -83,13 +83,6 @@ available yet and will be added here once the organizers release them.
 | `evaluate.py` | score displacement fields: DSC, HD95, MTV, TLG, NDV |
 | `psmareg/` | the method itself: model, losses, data pipeline, affine stage, instance optimization, config |
 | `split.json` | the paper's patient-level train/validation split |
-| `LICENSE` | MIT, carrying LapIRN's notice |
-| `requirements.txt` | Python dependencies |
-| `assets/` | figures |
-
-The **submission container image is not in the repository** — it bundles the segmentation
-weights and is several GB, so it is published to the GitHub Container Registry as
-[`ghcr.io/koegl/psmareg`](https://github.com/users/koegl/packages/container/package/psmareg).
 
 ## Weights
 
@@ -129,7 +122,7 @@ and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
 
 Requires [Docker Engine](https://docs.docker.com/engine/install/) and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 
-Pull the image (no login needed, the package is public):
+Pull the image from [`ghcr.io/koegl/psmareg`](https://github.com/users/koegl/packages/container/package/psmareg) (public, no login needed):
 
 ```bash
 docker pull ghcr.io/koegl/psmareg:v1.0.0
