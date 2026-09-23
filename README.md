@@ -25,7 +25,7 @@ A three-stage pipeline built on the diffeomorphic, coarse-to-fine **LapIRN** arc
    which keeps the transform diffeomorphic. Levels are trained sequentially, each finer
    level initialised from the previous one. Image similarity is computed on **CT only**,
    since PET uptake legitimately changes after therapy; PET enters as network input and
-   through the preservation losses below.
+   through the preservation losses.
 3. **Instance optimization (IO).** At test time each pair is refined by optimising a
    *residual* velocity field on top of the network prediction, initialised at zero and
    exponentiated the same way, so the refinement stays diffeomorphic. It uses the
@@ -33,38 +33,11 @@ A three-stage pipeline built on the diffeomorphic, coarse-to-fine **LapIRN** arc
 
 The affine and the deformable field are composed into a single total transform.
 
-## Losses
-
-The same weighted objective drives training and instance optimization, in three groups —
-one per evaluation criterion:
-
-**Registration accuracy**
-- `L_NCC` — local normalised cross-correlation on the CT channel, summed over as many
-  scales as the pyramid level has resolutions (one at the coarsest, three at full res).
-- `L_DSC` — Dice on the CT organ labels (weak supervision).
-
-**PET quantification** (all evaluated on the composed transform and the original moving
-lesion mask)
-- `L_MTV` — relative change in metabolic tumor volume.
-- `L_MTV-J` — deviation of the *mean* Jacobian determinant over the warped lesion from 1.
-- `L_jac` — per-voxel deviation of the Jacobian determinant from 1, which discourages
-  locally compensating compression and expansion.
-- `L_TLG` — relative change in PET intensity mass inside the lesion (total lesion
-  glycolysis), capturing both volume change and intensity interpolation.
-
-**Deformation regularization**
-- `L_rigid` — per-structure rigidity. Each of the 61 skeletal TotalSegmentator labels is
-  fitted independently with a closed-form Kabsch rigid transform and the residual is
-  penalised, constraining deformation *within* a bone while structures stay free to move
-  relative to each other.
-- `L_smooth` — diffusion regularizer (mean squared spatial gradient of the displacement).
-- `L_NDV` — a differentiable reproduction of the challenge's non-diffeomorphic-volume
-  metric (six-tetrahedra decomposition, negative Jacobian parts accumulated over the body
-  mask), so gradients appear exactly where folding occurs.
-
-Only the full-resolution level is trained with the complete objective. The two coarser
-levels use similarity, label and regularization terms only — downsampled lesions and thin
-ribs span too few voxels for volume ratios and per-structure rigid fits to be meaningful.
+**Losses.** One weighted objective drives both training and IO: CT-only local NCC and
+organ-label Dice for accuracy; MTV, lesion-Jacobian and TLG preservation terms for PET
+quantification; and per-bone rigidity, diffusion smoothness and a differentiable
+folding (NDV) penalty for regularization. The two coarser levels drop the PET and
+rigidity terms.
 
 ## Inputs and outputs
 
