@@ -53,16 +53,11 @@ The dataset is not redistributed here. Access through the [challenge page](https
 | moving PET | `PSMARegPSMA_XXXX_0001_01.nii.gz` | follow-up |
 
 All volumes are 192 × 192 × 288 voxels at 2.7344 × 2.7344 × 3.27 mm; no further geometric
-preprocessing is applied. Intensities are clipped (CT to [−1000, 1500] HU, PET SUV to
-[0, 20]) and rescaled to [0, 1] internally.
+preprocessing is applied.
 
 **Output** — one dense displacement field per pair, `disp_XXXX_00_XXXX_01.nii.gz`:
 channel-first `(3, 192, 192, 288)`, in **voxel units**, mapping the moving (follow-up)
 scan into the fixed (baseline) frame.
-
-Training additionally consumes the CT organ labels and PET lesion labels. For cases
-without released labels these are generated: TotalSegmentator in fast mode for CT
-organs, and an nnU-Net trained on this cohort for PET lesions.
 
 ## Results
 
