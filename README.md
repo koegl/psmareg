@@ -206,33 +206,15 @@ labels for both scans, either supplied:
 python inference.py ... --io --moving-lesion lesion.nii.gz --moving-labels moving_labels.nii.gz --fixed-labels fixed_labels.nii.gz
 ```
 
-or predicted (TotalSegmentator for organs, the nnU-Net below for lesions):
+or predicted — organs by TotalSegmentator, lesions by an nnU-Net we trained on this
+dataset (the extracted `psmareg_lesion_nnunet` from [Weights](#weights)):
 
 ```bash
 python inference.py ... --io --lesion-model psmareg_lesion_nnunet
 ```
 
-A missing label only disables the loss terms that need it.
-
-### PET lesion model
-
-`--lesion-model` is an nnU-Net results folder — the one holding `plans.json`,
-`dataset.json` and `fold_0/` — containing the model the container runs: an nnU-Net
-trained on the challenge cohort with progressive growing of patch size
-([Fischer et al.](https://arxiv.org/abs/2407.07853)), `nnUNetTrainer_PGPSplus`.
-
-That trainer changes only the training schedule, never the architecture, so stock
-nnU-Net loads the checkpoint once the trainer name resolves — which is all
-`_patch_trainer_lookup` in [psmareg/segmentation.py](psmareg/segmentation.py) arranges.
-The training fork is not needed at inference.
-
-Use this model rather than another lesion segmenter if you are reproducing the
-submission: the MTV and TLG terms are computed on its mask, so a different mask gives a
-different refinement. One pair takes about 17 s. `--lesion-folds 0 1 2 3 4` ensembles
-five folds where a model has them, at five times the cost.
-
-The affine stage is not seeded from Python (ITK uses its own RNG), so repeated runs on
-the same pair differ slightly — on the order of 0.1 voxels on average.
+A missing label only disables the loss terms that need it. To reproduce the submission,
+use this lesion model — the MTV and TLG terms are computed on its mask.
 
 ## Evaluation
 
