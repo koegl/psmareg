@@ -163,8 +163,7 @@ Without the container, on a single pair:
 python inference.py --fixed-ct fixed_ct.nii.gz --fixed-pet fixed_pet.nii.gz --moving-ct moving_ct.nii.gz --moving-pet moving_pet.nii.gz --weights psmareg_registration.pth --out disp.nii.gz
 ```
 
-Affine pre-registration, the network, and the composition of the two: about 21 s per
-pair on an RTX A6000, most of it the CPU-bound ANTs affine.
+~21 s per pair (RTX A6000).
 
 ### Instance optimization
 
