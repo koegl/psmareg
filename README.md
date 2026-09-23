@@ -109,11 +109,6 @@ curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_regis
 curl -LO https://github.com/koegl/psmareg/releases/latest/download/psmareg_lesion_nnunet.tar.gz && tar xzf psmareg_lesion_nnunet.tar.gz
 ```
 
-The lesion archive holds only `plans.json`, `dataset.json` and `fold_0/checkpoint_final.pth`
-— the training run also left ~17 intermediate patch-size checkpoints (4.2 GB) that
-inference never reads. `checkpoint_final`, not `checkpoint_best`: the validation split is
-the held-out set the segmentation models were compared on.
-
 Both are already baked into the container, which needs neither download.
 
 ## Installation
