@@ -21,9 +21,13 @@ The output is a dense ``(3, H, W, D)`` field of voxel displacements mapping the
 follow-up onto the baseline grid.
 """
 
+import time
+
+# The time budget counts from process start, like the challenge's per-pair limit.
+PROCESS_START = time.time()
+
 import argparse
 import tempfile
-import time
 from pathlib import Path
 
 import torch
@@ -86,7 +90,23 @@ def parse_args() -> argparse.Namespace:
     io_group.add_argument(
         "--io", action="store_true", help="refine the field for this pair"
     )
-    io_group.add_argument("--io-steps", type=int, default=IOConfig.steps)
+    budget = io_group.add_mutually_exclusive_group()
+    budget.add_argument(
+        "--io-time",
+        type=float,
+        default=90.0,
+        help="wall-clock budget in seconds for the whole pair, from process start; "
+        "IO takes as many steps as fit",
+    )
+    budget.add_argument(
+        "--io-steps", type=int, help="run a fixed number of IO steps instead"
+    )
+    io_group.add_argument(
+        "--io-finish-reserve",
+        type=float,
+        default=9.0,
+        help="seconds of --io-time held back for writing the field",
+    )
     io_group.add_argument("--io-lr", type=float, default=IOConfig.lr)
     io_group.add_argument(
         "--moving-lesion", type=Path, help="PET lesion mask of the follow-up scan"
@@ -156,6 +176,12 @@ def main() -> None:
             )
 
         inputs = IOInputs(lesion, moving_labels, fixed_labels)
+        deadline = None
+        io_cfg = IOConfig(lr=args.io_lr)
+        if args.io_steps is not None:
+            io_cfg.steps = args.io_steps
+        else:
+            deadline = PROCESS_START + args.io_time - args.io_finish_reserve
         io_start = time.time()
         flow = run_io(
             flow,
@@ -163,8 +189,9 @@ def main() -> None:
             fixed,
             inputs,
             grid,
-            IOConfig(steps=args.io_steps, lr=args.io_lr),
+            io_cfg,
             device,
+            deadline=deadline,
         )
         print(f"instance optimization done in {time.time() - io_start:.1f}s", flush=True)
 

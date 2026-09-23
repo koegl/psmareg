@@ -14,6 +14,7 @@ objective being descended: the two differ because the optimizer needs smooth,
 interpolated proxies where the scorer counts whole voxels.
 """
 
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -34,8 +35,15 @@ class IOConfig:
     that works during training is not the one that works here.
     """
 
+    # Fixed step count, used when run_io gets no deadline.
     steps: int = 9
     lr: float = 0.025
+    # Under a deadline: the assumed cost of the first step (the slowest, it pays
+    # cuDNN autotuning), the margin each predicted step cost is inflated by, and
+    # a ceiling that exists only so a broken clock cannot spin forever.
+    min_step_seconds: float = 4.0
+    step_safety: float = 1.3
+    max_steps: int = 1_000_000
     integration_steps: int = 7
     ncc_window: int = 7
 
@@ -262,8 +270,12 @@ def run_io(
     cfg: IOConfig,
     device: torch.device,
     verbose: bool = True,
+    deadline: Optional[float] = None,
 ) -> torch.Tensor:
     """Refine ``flow`` for this pair and return the best iterate.
+
+    ``deadline`` is an absolute ``time.time()`` by which the loop must end. With
+    one, steps continue until the next would not fit; without, ``cfg.steps`` run.
 
     ``flow`` is the total (affine-composed) unit flow. The returned field is the
     best-scoring iterate, which may be the input itself — ``best`` starts as the
@@ -293,7 +305,18 @@ def run_io(
     best_step = -1
     history: List[Dict[str, float]] = []
 
-    for step in range(cfg.steps):
+    max_steps = cfg.steps if deadline is None else cfg.max_steps
+    next_step_estimate = cfg.min_step_seconds
+
+    for step in range(max_steps):
+        if deadline is not None:
+            remaining = deadline - time.time()
+            if remaining < next_step_estimate * cfg.step_safety:
+                if verbose:
+                    print(f"  IO stopping after {step} step(s): {remaining:.1f}s left", flush=True)
+                break
+        step_start = time.time()
+
         optimizer.zero_grad()
         current = _apply_refinement(
             base, velocity, identity, shape, cfg.integration_steps
@@ -303,6 +326,10 @@ def run_io(
         )
         loss.backward()
         optimizer.step()
+        # CUDA is asynchronous: without the sync this would time the queueing.
+        if velocity.is_cuda:
+            torch.cuda.synchronize()
+        next_step_estimate = time.time() - step_start
 
         # Select on what the challenge scores: substitute the hard (whole-voxel)
         # MTV and TLG for the soft proxies inside the objective value. Without
@@ -321,7 +348,7 @@ def run_io(
             reported = " ".join(
                 f"{k}={v:.4f}" for k, v in logs.items() if not np.isnan(v)
             )
-            print(f"  IO {step + 1}/{cfg.steps} loss={loss.item():.4f} {reported}", flush=True)
+            print(f"  IO {step + 1} loss={loss.item():.4f} {reported}", flush=True)
 
     if verbose:
         print(f"  IO kept step {best_step + 1} (score {best_score:.4f})", flush=True)

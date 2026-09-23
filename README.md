@@ -160,6 +160,8 @@ dataset (the extracted `psmareg_lesion_nnunet` from [Weights](#weights)):
 python inference.py ... --io --lesion-model psmareg_lesion_nnunet
 ```
 
+By default IO runs as many steps as fit in a 90 s budget per pair, as in the
+container; `--io-time` changes the budget, `--io-steps` fixes the step count instead.
 A missing label only disables the loss terms that need it. To reproduce the submission,
 use this lesion model — the MTV and TLG terms are computed on its mask.
 
