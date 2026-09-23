@@ -137,6 +137,8 @@ and nnunetv2 2.8.1 on an NVIDIA RTX A6000.
 
 ## Running the container
 
+Requires [Docker Engine](https://docs.docker.com/engine/install/) and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
 Pull the image (no login needed, the package is public):
 
 ```bash
@@ -221,16 +223,6 @@ To score MTV and TLG against different lesion masks — predicted ones, say — 
 ```bash
 python evaluate.py --fields runs/predictions --data-dir /path/to/PSMAReg_dataset --lesion-masks runs/segmentations
 ```
-
-## Docker prerequisites
-
-Docker Engine and the NVIDIA Container Toolkit (for `--gpus`) must be installed:
-
-- Docker Engine: <https://docs.docker.com/engine/install/>
-- NVIDIA Container Toolkit: <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>
-
-Check both with `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi`,
-which should print your GPU.
 
 ## Licence
 
