@@ -181,43 +181,10 @@ python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --lev
 python train.py --data-dir /path/to/PSMAReg_dataset --out-dir runs/psmareg --level 3 --init runs/psmareg/level2_best.pth
 ```
 
-The data directory is the challenge layout — `imagesTr/` and `labelsTr/`, with pairs
-discovered from the filenames and every follow-up registered onto its patient's
-baseline.
-
-[`split.json`](split.json) is the split the paper used: 117 training and 29 validation
-patients, drawn from the 146 paired cases of the released training set. It is read by
-default, so training reproduces the paper's setup. The split is **by patient** rather
-than by pair — two timepoints of one patient share anatomy, so splitting on pairs would
-leak validation anatomy into training. Pass `--split` for another file, or delete it to
-draw a fresh split into `<out-dir>/split.json`. Those 146 patients give 163 training and
-39 validation pairs.
-
-The affine pre-registration is cached under `<out-dir>/affine_cache` on first use —
-it is deterministic given a pair and costs ~15 s of CPU, which would otherwise dominate
-every step. Point all three levels at one cache with `--cache-dir`.
-
-Reference run: 60k / 60k / 120k steps with Adam at 3·10⁻⁴, 2·10⁻⁴ and 2.5·10⁻⁴, batch
-size 1 with gradient accumulation over 4 steps, five epochs of linear warmup per level,
-and the preceding level frozen for the first ten epochs then fine-tuned jointly. The
-convolutional trunk runs in bfloat16 while transforms and losses stay in fp32, keeping
-scaling-and-squaring and the Jacobian terms numerically sound. All three levels take
-≈ 2 d 6 h on a single NVIDIA H100 80 GB. `--steps` and `--lr` override the schedule.
-
-Loss weights and augmentation live in `TrainConfig` in
-[psmareg/config.py](psmareg/config.py); `level_weights` is where the coarse levels drop
-the PET and rigidity terms.
-
-**Checkpoint selection.** Validation runs on the composed transform at full resolution
-whatever level is training, and checkpoints are kept on the challenge's composite score,
-not on Dice — registration accuracy keeps improving after the MTV and TLG errors have
-bottomed out, so the best-aligned checkpoint is not the best submission. The score is a
-surrogate: it mirrors the official 0.4/0.4/0.2 weighted geometric mean, with the
-server's significance tests replaced by per-metric qualities a single run can compute
-(see [psmareg/metrics.py](psmareg/metrics.py)). HD95 there is a distance-transform
-implementation rather than the challenge's surfel-based one, so absolute values differ
-slightly from the leaderboard; only the ordering between checkpoints matters for
-selection.
+`--data-dir` is the challenge layout (`imagesTr/`, `labelsTr/`). The paper's
+patient-level split, [`split.json`](split.json), is read by default, and the defaults in
+[psmareg/config.py](psmareg/config.py) are the reference run (≈ 2 d 6 h in total on one
+H100 80 GB).
 
 ## Inference
 
