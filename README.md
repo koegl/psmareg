@@ -199,25 +199,20 @@ pair on an RTX A6000, most of it the CPU-bound ANTs affine.
 
 ### Instance optimization
 
-`--io` refines the field for that one pair. It needs a PET lesion mask of the moving
-scan and CT organ labels for both scans. Supply them directly:
+`--io` refines the field for the pair. It uses a moving PET lesion mask and CT organ
+labels for both scans, either supplied:
 
 ```bash
 python inference.py ... --io --moving-lesion lesion.nii.gz --moving-labels moving_labels.nii.gz --fixed-labels fixed_labels.nii.gz
 ```
 
-or let them be predicted — CT organs from TotalSegmentator, PET lesions from an nnU-Net
-model directory:
+or predicted (TotalSegmentator for organs, the nnU-Net below for lesions):
 
 ```bash
 python inference.py ... --io --lesion-model psmareg_lesion_nnunet
 ```
 
-Each label gates exactly one group of terms, so anything missing simply switches those
-off rather than failing: without the lesion mask the PET terms go, without the CT
-labels the Dice and rigidity terms go, and with neither the refinement runs on NCC,
-smoothness and the folding barrier alone. `--io-steps` and `--io-lr` tune the loop;
-the remaining weights live in `IOConfig` in [psmareg/instance_opt.py](psmareg/instance_opt.py).
+A missing label only disables the loss terms that need it.
 
 ### PET lesion model
 
